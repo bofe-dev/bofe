@@ -68,7 +68,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uucore = { version = "0.9.0", features = ["fsext"] }
 url.workspace = true
 uuid.workspace = true
-validator = { version = "0.20.0", features = ["derive"], optional = true }
+validator = { version = "0.21.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
 fake = { version = "5.1.0", features = ["chrono"] }
