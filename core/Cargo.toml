@@ -11,7 +11,7 @@ chrono.workspace = true
 
 [dependencies]
 ab_glyph = { version = "0.2.32", optional = true }
-anyhow = "1.0.103"
+anyhow.workspace = true
 apalis.workspace = true
 apalis-redis = "1.0.0-rc.8"
 async-graphql = { workspace = true, features = [
@@ -41,8 +41,8 @@ file-format = { version = "0.29.0", features = [
 ] }
 fluent-bundle = "0.16.0"
 fluent-templates = "0.14.0"
-futures = "0.3.32"
-futures-util = "0.3.32"
+futures = "0.3.33"
+futures-util = "0.3.33"
 image = { version = "0.25.10", optional = true }
 imageproc = { version = "0.27.0", optional = true }
 rand = { version = "0.10.2", optional = true }

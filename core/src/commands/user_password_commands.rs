@@ -79,6 +79,7 @@ pub async fn update_user_password<'a>(user: &User<'_>, params: UpdatePasswordPar
             birthdate,
             language_code AS "language_code!: LanguageCode",
             country_code AS "country_code!: CountryCode",
+            avatar_image_attachment_id,
             disabled_at,
             created_at,
             updated_at"#,

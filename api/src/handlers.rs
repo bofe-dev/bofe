@@ -156,8 +156,9 @@ pub async fn get_attachment_thumbnail(
     let attachment_key = commands::get_attachment_key_by_id(key_id).await.or_not_found()?;
     let attachment = attachment_key.attachment().await.or_not_found()?;
     let blob = attachment.blob().await.or_not_found()?;
+    let file_type = blob.thumbnail_file_type();
 
-    if !blob.file_type.support_thumbnails() {
+    if !file_type.support_thumbnails() {
         return Err(RESPONSE_ERROR_BAD_REQUEST.clone().into());
     }
 
@@ -174,7 +175,7 @@ pub async fn get_attachment_thumbnail(
     let body = Body::from(content);
 
     let headers = [
-        (CONTENT_TYPE, blob.thumbnail_file_type().to_string()),
+        (CONTENT_TYPE, file_type.to_string()),
         (CONTENT_LENGTH, content_len.to_string()),
         (
             CONTENT_DISPOSITION,
@@ -183,7 +184,7 @@ pub async fn get_attachment_thumbnail(
                 attachment.file_name_without_extension(),
                 width,
                 height,
-                blob.thumbnail_file_type().extension()
+                file_type.extension()
             ),
         ),
     ];
@@ -235,17 +236,24 @@ pub async fn get_user_avatar_image(
 
     let user = commands::get_user_by_id(id).await.or_not_found()?;
 
-    let avatar_image = user.avatar_image(size).or_bad_request()?;
+    let avatar_image = user.avatar_image(size).await.or_bad_request()?;
 
     let content_length = avatar_image.len();
     let body = Body::from(avatar_image);
+    let file_type = user.avatar_image_file_type().await.or_internal_server_error()?;
 
     let headers = [
-        (CONTENT_TYPE, "image/jpeg".to_owned()),
+        (CONTENT_TYPE, file_type.to_string()),
         (CONTENT_LENGTH, content_length.to_string()),
         (
             CONTENT_DISPOSITION,
-            format!("inline; filename=\"{}_{}x{}.jpg\"", id, size, size),
+            format!(
+                "inline; filename=\"{}_{}x{}.{}\"",
+                id,
+                size,
+                size,
+                file_type.extension()
+            ),
         ),
     ];
 

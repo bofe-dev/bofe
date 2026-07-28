@@ -11,7 +11,7 @@ use crate::graphql::guards::UserGuard;
 use crate::models::User;
 use crate::pagination::CursorParams;
 
-use super::BoardObject;
+use super::{AttachmentObject, BoardObject};
 
 pub struct UserObject<'a>(pub User<'a>);
 
@@ -71,8 +71,12 @@ impl UserObject<'_> {
         self.0.country_code
     }
 
-    async fn avatar_image_url(&self) -> Url {
-        self.0.avatar_image_url()
+    async fn avatar_image_url(&self, #[graphql(default = 256)] size: u16) -> Url {
+        self.0.avatar_image_url(size)
+    }
+
+    async fn avatar_image_attachment(&self) -> Result<Option<AttachmentObject<'_>>> {
+        Ok(self.0.avatar_image_attachment().await?.map(AttachmentObject))
     }
 
     async fn board_by_slug(&self, ctx: &Context<'_>, slug: String) -> Option<BoardObject<'_>> {

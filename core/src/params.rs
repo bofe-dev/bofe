@@ -231,6 +231,7 @@ pub struct UpdateProfileParams {
     pub birthdate: NaiveDate,
     pub language_code: Option<LanguageCode>,
     pub country_code: CountryCode,
+    pub avatar_image_attachment_id: Option<Uuid>,
 }
 
 #[cfg_attr(feature = "graphql", derive(async_graphql::InputObject))]

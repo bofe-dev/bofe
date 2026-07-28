@@ -49,24 +49,22 @@ pub(crate) async fn delete_user(user: &User<'_>) -> sqlx::Result<bool> {
 }
 
 #[cfg(feature = "graphql")]
-pub fn get_user_avatar_image(user: &User<'_>, size: u16) -> anyhow::Result<Vec<u8>> {
+pub fn get_user_text_icon(user: &User<'_>, size: u16) -> anyhow::Result<Vec<u8>> {
     if !(32..=512).contains(&size) || size & (size - 1) != 0 {
         return Err(anyhow::anyhow!("Invalid avatar image size"));
     }
 
-    let avatar_image_path = user.avatar_image_path(size);
+    let text_icon_path = user.text_icon_path(size);
 
-    if !avatar_image_path.exists() {
+    if !text_icon_path.exists() {
         let avatar_image = text_icon(&user.username, size).expect("Could not create text icon");
 
-        std::fs::create_dir_all(avatar_image_path.parent().expect("Could not create storage dir"))?;
+        std::fs::create_dir_all(text_icon_path.parent().expect("Could not create storage dir"))?;
 
-        avatar_image
-            .save(&avatar_image_path)
-            .expect("Could not save avatar image");
+        avatar_image.save(&text_icon_path).expect("Could not save avatar image");
     }
 
-    Ok(std::fs::read(&avatar_image_path).expect("Could not read avatar image"))
+    Ok(std::fs::read(&text_icon_path).expect("Could not read avatar image"))
 }
 
 #[concurrent_cached(
@@ -90,6 +88,7 @@ pub async fn get_user_by_id<'a>(id: Uuid) -> sqlx::Result<User<'a>> {
             birthdate,
             language_code AS "language_code!: LanguageCode",
             country_code AS "country_code!: CountryCode",
+            avatar_image_attachment_id,
             disabled_at,
             created_at,
             updated_at
@@ -127,6 +126,7 @@ pub(crate) async fn get_user_by_username<'a>(username: &str) -> sqlx::Result<Use
             birthdate,
             language_code AS "language_code!: LanguageCode",
             country_code AS "country_code!: CountryCode",
+            avatar_image_attachment_id,
             disabled_at,
             created_at,
             updated_at
@@ -163,6 +163,7 @@ pub(crate) async fn get_user_by_username_or_email<'a>(username_or_email: &str) -
             birthdate,
             language_code AS "language_code!: LanguageCode",
             country_code AS "country_code!: CountryCode",
+            avatar_image_attachment_id,
             disabled_at,
             created_at,
             updated_at
@@ -250,6 +251,7 @@ pub(crate) async fn insert_user<'a>(params: UserParams) -> ValidationResult<User
             birthdate,
             language_code AS "language_code!: LanguageCode",
             country_code AS "country_code!: CountryCode",
+            avatar_image_attachment_id,
             disabled_at,
             created_at,
             updated_at"#,
@@ -300,6 +302,7 @@ pub async fn paginate_users<'a>(cursor_params: CursorParams, query: &str) -> Cur
                     birthdate,
                     language_code AS "language_code!: LanguageCode",
                     country_code AS "country_code!: CountryCode",
+                    avatar_image_attachment_id,
                     disabled_at,
                     created_at,
                     updated_at
@@ -338,11 +341,37 @@ pub(crate) async fn remove_user_cache(user: &User<'_>) {
 pub async fn update_user_profile<'a>(user: &User<'_>, params: UpdateProfileParams) -> ValidationResult<User<'a>> {
     params.validate()?;
 
+    let avatar_image_attachment_id = if let Some(attachment_id) = params.avatar_image_attachment_id {
+        let attachment = get_attachment_by_id(attachment_id)
+            .await
+            .or_validation_errors_with("avatar_image_attachment_id", ERROR_IS_INVALID.clone())?;
+
+        if attachment.user_id != Some(user.id)
+            || !attachment.file_type().await.or_validation_errors()?.is_raster_image()
+        {
+            return Err(ValidationErrors::with(
+                "avatar_image_attachment_id",
+                ERROR_IS_INVALID.clone(),
+            ));
+        }
+
+        Some(attachment.id)
+    } else {
+        None
+    };
+
     let db_pool = db_pool().await;
 
     let updated_user = sqlx::query_as!(
         User,
-        r#"UPDATE users SET display_name = $2, full_name = $3, birthdate = $4, language_code = $5, country_code = $6
+        r#"UPDATE users
+        SET
+            display_name = $2,
+            full_name = $3,
+            birthdate = $4,
+            language_code = $5,
+            country_code = $6,
+            avatar_image_attachment_id = $7
         WHERE disabled_at IS NULL AND id = $1
         RETURNING
             id,
@@ -355,15 +384,17 @@ pub async fn update_user_profile<'a>(user: &User<'_>, params: UpdateProfileParam
             birthdate,
             language_code AS "language_code!: LanguageCode",
             country_code AS "country_code!: CountryCode",
+            avatar_image_attachment_id,
             disabled_at,
             created_at,
             updated_at"#,
-        user.id,                                       // $1
-        params.display_name,                           // $2
-        params.full_name,                              // $3
-        params.birthdate,                              // $4
-        params.language_code.unwrap_or_default() as _, // $5
-        params.country_code as _                       // $6
+        user.id,                                                 // $1
+        params.display_name,                                     // $2
+        params.full_name,                                        // $3
+        params.birthdate,                                        // $4
+        params.language_code.unwrap_or(user.language_code) as _, // $5
+        params.country_code as _,                                // $6
+        avatar_image_attachment_id,                              // $7
     )
     .fetch_one(db_pool)
     .await
@@ -386,7 +417,7 @@ pub(crate) async fn user_username_exists(username: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::{fake_email, fake_password, fake_username, insert_test_user};
+    use crate::test_utils::*;
 
     use super::*;
 
@@ -421,6 +452,79 @@ mod tests {
         let result = delete_user(&user).await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_user_text_icon_with_valid_params_return_ok() {
+        let user = insert_test_user(None).await;
+
+        let result = get_user_text_icon(&user, 32);
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_user_text_icon_with_invalid_size_return_err() {
+        let user = insert_test_user(None).await;
+
+        let result = get_user_text_icon(&user, 33);
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn update_user_profile_with_valid_params_return_ok() {
+        let user = insert_test_user(None).await;
+        let display_name = fake_name();
+        let full_name = fake_name();
+        let birthdate = fake_birthdate();
+        let language_code = fake_language_code();
+        let country_code = fake_country_code();
+
+        let result = update_user_profile(
+            &user,
+            UpdateProfileParams {
+                display_name: display_name.clone(),
+                full_name: full_name.clone(),
+                birthdate,
+                language_code: Some(language_code),
+                country_code,
+                avatar_image_attachment_id: None,
+            },
+        )
+        .await;
+
+        assert!(result.is_ok());
+
+        let updated_user = result.unwrap();
+
+        assert_eq!(updated_user.display_name, display_name);
+        assert_eq!(updated_user.full_name, full_name);
+        assert_eq!(updated_user.birthdate, birthdate);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn update_user_profile_with_empty_display_name_return_err() {
+        let user = insert_test_user(None).await;
+        let full_name = fake_name();
+        let birthdate = fake_birthdate();
+        let language_code = fake_language_code();
+        let country_code = fake_country_code();
+
+        let result = update_user_profile(
+            &user,
+            UpdateProfileParams {
+                display_name: String::new(),
+                full_name,
+                birthdate,
+                language_code: Some(language_code),
+                country_code,
+                avatar_image_attachment_id: None,
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
     }
 
     #[tokio::test]
