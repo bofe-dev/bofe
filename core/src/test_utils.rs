@@ -12,11 +12,11 @@ use crate::enums::{BoardVisibility, CountryCode, LanguageCode};
 use crate::models::{Board, Card, List, User};
 use crate::params::{BoardParams, CardParams, ListParams, UserParams};
 
-fn fake_birthdate() -> NaiveDate {
+pub fn fake_birthdate() -> NaiveDate {
     DateTimeBefore(Utc::now()).fake::<DateTime<Utc>>().date_naive()
 }
 
-fn fake_country_code() -> CountryCode {
+pub fn fake_country_code() -> CountryCode {
     CountryCode::VE
 }
 
@@ -24,7 +24,7 @@ pub fn fake_email() -> String {
     FreeEmail().fake_with_rng(&mut rng())
 }
 
-fn fake_language_code() -> LanguageCode {
+pub fn fake_language_code() -> LanguageCode {
     LanguageCode::Es
 }
 

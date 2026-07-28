@@ -10,13 +10,14 @@ homepage = "https://about.bofe.app"
 repository = "https://github.com/javierEd/bofe"
 
 [workspace.dependencies]
+anyhow = "1.0.104"
 apalis = "1.0.0-rc.9"
 async-graphql = { version = "8.0.0-rc.5", default-features = false }
 chrono = { version = "0.4.45", features = ["serde"] }
 envconfig = "0.11.1"
-serde = "1.0.228"
-serde_json = "1.0.150"
-tokio = { version = "1.53.0", features = [
+serde = "1.0.229"
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = [
     "macros",
     "rt-multi-thread",
     "signal",
