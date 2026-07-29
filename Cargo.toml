@@ -7,7 +7,7 @@ version = "0.0.0-alpha.23"
 edition = "2024"
 authors = ["Javier E. <jaedns@gmail.com>"]
 homepage = "https://about.bofe.app"
-repository = "https://github.com/javierEd/bofe"
+repository = "https://github.com/bofe-dev/bofe"
 
 [workspace.dependencies]
 anyhow = "1.0.104"
