@@ -24,6 +24,9 @@ use crate::params::BoardParams;
 use super::redis_cache_store;
 
 #[cfg(feature = "graphql")]
+use super::{ValidationErrorsTrait, get_attachment_by_id};
+
+#[cfg(feature = "graphql")]
 use super::{AsyncRedisCacheExt, OrValidationErrors, ValidationResult, notify_board_channel};
 
 #[derive(Clone)]
@@ -99,6 +102,7 @@ pub async fn get_board_by_id<'a>(id: Uuid) -> sqlx::Result<Board<'a>> {
         r#"SELECT
             id,
             user_id,
+            background_image_attachment_id,
             name,
             slug,
             description,
@@ -127,6 +131,7 @@ async fn get_board_by_slug<'a>(slug: &str) -> sqlx::Result<Board<'a>> {
         r#"SELECT
             id,
             user_id,
+            background_image_attachment_id,
             name,
             slug,
             description,
@@ -154,6 +159,7 @@ pub(crate) async fn get_board_by_user_and_slug<'a>(user: &User<'_>, slug: &str) 
         r#"SELECT
             id,
             user_id,
+            background_image_attachment_id,
             name,
             slug,
             description,
@@ -231,6 +237,26 @@ pub(crate) async fn insert_board<'a>(user: &User<'_>, params: BoardParams) -> Va
     let slug = params.slug.trim().to_lowercase();
     let description = params.description.trim();
 
+    let background_image_attachment_id =
+        if let Some(background_image_attachment_id) = params.background_image_attachment_id {
+            let attachment = get_attachment_by_id(background_image_attachment_id)
+                .await
+                .or_validation_errors_with("background_image_attachment_id", ERROR_IS_INVALID.clone())?;
+
+            if attachment.user_id != Some(user.id)
+                || !attachment.file_type().await.or_validation_errors()?.is_raster_image()
+            {
+                return Err(ValidationErrors::with(
+                    "background_image_attachment_id",
+                    ERROR_IS_INVALID.clone(),
+                ));
+            }
+
+            Some(attachment.id)
+        } else {
+            None
+        };
+
     if board_name_exists(user, None, name).await {
         validation_errors.add("name", ERROR_ALREADY_EXISTS.clone());
     }
@@ -247,21 +273,24 @@ pub(crate) async fn insert_board<'a>(user: &User<'_>, params: BoardParams) -> Va
 
     let board = sqlx::query_as!(
         Board,
-        r#"INSERT INTO boards (user_id, name, slug, description, visibility) VALUES ($1, $2, $3, $4, $5)
+        r#"INSERT INTO boards (user_id, background_image_attachment_id, name, slug, description, visibility)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING
             id,
             user_id,
+            background_image_attachment_id,
             name,
             slug,
             description,
             visibility AS "visibility!: BoardVisibility",
             created_at,
             updated_at"#,
-        user.id,                // $1
-        name,                   // $2
-        slug,                   // $3
-        description,            // $4
-        params.visibility as _, // $5
+        user.id,                        // $1
+        background_image_attachment_id, // $2
+        name,                           // $3
+        slug,                           // $4
+        description,                    // $5
+        params.visibility as _,         // $6
     )
     .fetch_one(db_pool)
     .await
@@ -297,6 +326,7 @@ pub(crate) async fn paginate_boards<'a>(
                 r#"SELECT
                     id,
                     user_id,
+                    background_image_attachment_id,
                     name,
                     slug,
                     description,
@@ -353,7 +383,8 @@ pub(crate) async fn update_board<'a>(
 ) -> ValidationResult<Board<'a>> {
     params.validate()?;
 
-    if params.name == board.name
+    if params.background_image_attachment_id == board.background_image_attachment_id
+        && params.name == board.name
         && params.slug == board.slug
         && params.description == board.description
         && params.visibility == board.visibility
@@ -371,6 +402,26 @@ pub(crate) async fn update_board<'a>(
     let slug = params.slug.trim().to_lowercase();
     let description = params.description.trim();
 
+    let background_image_attachment_id =
+        if let Some(background_image_attachment_id) = params.background_image_attachment_id {
+            let attachment = get_attachment_by_id(background_image_attachment_id)
+                .await
+                .or_validation_errors_with("background_image_attachment_id", ERROR_IS_INVALID.clone())?;
+
+            if attachment.user_id != Some(user.id)
+                || !attachment.file_type().await.or_validation_errors()?.is_raster_image()
+            {
+                return Err(ValidationErrors::with(
+                    "background_image_attachment_id",
+                    ERROR_IS_INVALID.clone(),
+                ));
+            }
+
+            Some(attachment.id)
+        } else {
+            None
+        };
+
     if board_name_exists(user, Some(board), name).await {
         validation_errors.add("name", ERROR_ALREADY_EXISTS.clone());
     }
@@ -387,10 +438,12 @@ pub(crate) async fn update_board<'a>(
 
     let updated_board = sqlx::query_as!(
         Board,
-        r#"UPDATE boards SET name = $2, slug = $3, description = $4, visibility = $5 WHERE id = $1
+        r#"UPDATE boards SET background_image_attachment_id = $2, name = $3, slug = $4, description = $5, visibility = $6
+        WHERE id = $1
         RETURNING
             id,
             user_id,
+            background_image_attachment_id,
             name,
             slug,
             description,
@@ -398,10 +451,11 @@ pub(crate) async fn update_board<'a>(
             created_at,
             updated_at"#,
         board.id,               // $1
-        name,                   // $2
-        slug,                   // $3
-        description,            // $4
-        params.visibility as _, // $5
+        background_image_attachment_id, // $2
+        name,                   // $3
+        slug,                   // $4
+        description,            // $5
+        params.visibility as _, // $6
     )
     .fetch_one(db_pool)
     .await
@@ -421,4 +475,116 @@ pub(crate) async fn update_board<'a>(
         .await;
 
     Ok(updated_board)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::{fake_name, fake_paragraph, fake_slug, insert_test_board, insert_test_user};
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn insert_board_with_valid_params_returns_ok() {
+        let user = insert_test_user(None).await;
+        let name = fake_name();
+        let slug = fake_slug();
+        let description = fake_paragraph();
+
+        let result = insert_board(
+            &user,
+            BoardParams {
+                background_image_attachment_id: None,
+                name: name.clone(),
+                slug: slug.clone(),
+                description: description.clone(),
+                visibility: BoardVisibility::Public,
+            },
+        )
+        .await;
+
+        assert!(result.is_ok());
+
+        let board = result.unwrap();
+
+        assert_eq!(board.user_id, user.id);
+        assert_eq!(board.name, name);
+        assert_eq!(board.slug, slug);
+        assert_eq!(board.description, description);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn insert_board_with_empty_name_returns_err() {
+        let user = insert_test_user(None).await;
+        let slug = fake_slug();
+        let description = fake_paragraph();
+
+        let result = insert_board(
+            &user,
+            BoardParams {
+                background_image_attachment_id: None,
+                name: String::new(),
+                slug: slug.clone(),
+                description: description.clone(),
+                visibility: BoardVisibility::Public,
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn update_board_with_valid_params_returns_ok() {
+        let user = insert_test_user(None).await;
+        let board = insert_test_board(Some(&user)).await;
+        let name = fake_name();
+        let slug = fake_slug();
+        let description = fake_paragraph();
+
+        let result = update_board(
+            &user,
+            &board,
+            BoardParams {
+                background_image_attachment_id: None,
+                name: name.clone(),
+                slug: slug.clone(),
+                description: description.clone(),
+                visibility: BoardVisibility::Public,
+            },
+        )
+        .await;
+
+        assert!(result.is_ok());
+
+        let updated_board = result.unwrap();
+
+        assert_eq!(updated_board.user_id, user.id);
+        assert_eq!(updated_board.name, name);
+        assert_eq!(updated_board.slug, slug);
+        assert_eq!(updated_board.description, description);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn update_board_with_invalid_user_returns_err() {
+        let user = insert_test_user(None).await;
+        let board = insert_test_board(None).await;
+        let name = fake_name();
+        let slug = fake_slug();
+        let description = fake_paragraph();
+
+        let result = update_board(
+            &user,
+            &board,
+            BoardParams {
+                background_image_attachment_id: None,
+                name: name.clone(),
+                slug: slug.clone(),
+                description: description.clone(),
+                visibility: BoardVisibility::Public,
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+    }
 }

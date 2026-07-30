@@ -9,7 +9,7 @@ use crate::graphql::context::CustomExt;
 use crate::models::Board;
 use crate::pagination::CursorParams;
 
-use super::{ActivityObject, LabelObject, ListObject, MemberObject, UserObject};
+use super::{ActivityObject, AttachmentObject, LabelObject, ListObject, MemberObject, UserObject};
 
 pub struct BoardObject<'a>(pub Board<'a>);
 
@@ -21,6 +21,10 @@ impl BoardObject<'_> {
 
     async fn user(&self) -> Result<UserObject<'_>> {
         Ok(self.0.user().await.map(UserObject)?)
+    }
+
+    async fn background_image_attachment(&self) -> Result<Option<AttachmentObject<'_>>> {
+        Ok(self.0.background_image_attachment().await?.map(AttachmentObject))
     }
 
     async fn last_activity(&self) -> Option<ActivityObject> {

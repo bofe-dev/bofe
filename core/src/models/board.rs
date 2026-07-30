@@ -10,10 +10,14 @@ use crate::models::Activity;
 
 use super::User;
 
+#[cfg(feature = "graphql")]
+use super::Attachment;
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Board<'a> {
     pub id: Uuid,
     pub user_id: Uuid,
+    pub background_image_attachment_id: Option<Uuid>,
     pub name: Cow<'a, str>,
     pub slug: Cow<'a, str>,
     pub description: Cow<'a, str>,
@@ -115,6 +119,15 @@ impl Board<'_> {
                     false
                 }
             }
+        }
+    }
+
+    #[cfg(feature = "graphql")]
+    pub async fn background_image_attachment(&self) -> sqlx::Result<Option<Attachment<'_>>> {
+        if let Some(attachment_id) = self.background_image_attachment_id {
+            commands::get_attachment_by_id(attachment_id).await.map(Some)
+        } else {
+            Ok(None)
         }
     }
 
