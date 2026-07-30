@@ -73,6 +73,7 @@ pub async fn insert_test_board<'a>(user: Option<&User<'_>>) -> Board<'a> {
     commands::insert_board(
         &user,
         BoardParams {
+            background_image_attachment_id: None,
             name,
             slug,
             description,

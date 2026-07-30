@@ -73,6 +73,7 @@ pub struct ApplicationParams {
 #[cfg_attr(feature = "graphql", derive(async_graphql::InputObject))]
 #[derive(Validate)]
 pub(crate) struct BoardParams {
+    pub background_image_attachment_id: Option<Uuid>,
     #[validate(
         custom(function = "validate_presence"),
         length(max = 255, message = "Must have at most 255 characters")
