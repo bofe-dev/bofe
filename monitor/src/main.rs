@@ -40,6 +40,14 @@ async fn main() {
             .build(handlers::new_confirmation)
     };
 
+    let new_report_worker = |index| {
+        WorkerBuilder::new(format!("new-report-{index}"))
+            .backend(jobs_storage.new_report.clone())
+            .enable_tracing()
+            .concurrency(1)
+            .build(handlers::new_report)
+    };
+
     let new_session_worker = |index| {
         WorkerBuilder::new(format!("new-session-{index}"))
             .backend(jobs_storage.new_session.clone())
@@ -67,6 +75,7 @@ async fn main() {
     Monitor::new()
         .register(activity_worker)
         .register(new_confirmation_worker)
+        .register(new_report_worker)
         .register(new_session_worker)
         .register(new_user_worker)
         .register(password_changed_worker)

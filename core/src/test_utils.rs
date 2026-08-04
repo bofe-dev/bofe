@@ -1,16 +1,18 @@
+use std::net::IpAddr;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use fake::Fake;
 use fake::faker::chrono::en::DateTimeBefore;
-use fake::faker::internet::en::{FreeEmail, Password, Username};
+use fake::faker::internet::en::{FreeEmail, IP, Password, Username};
 use fake::faker::lorem::en::Paragraph;
 use fake::faker::name::en::Name;
 use rand::rng;
 use rand::rngs::ThreadRng;
 
 use crate::commands;
-use crate::enums::{BoardVisibility, CountryCode, LanguageCode};
-use crate::models::{Board, Card, List, User};
-use crate::params::{BoardParams, CardParams, ListParams, UserParams};
+use crate::enums::{BoardVisibility, CountryCode, LanguageCode, ReportTarget};
+use crate::models::{Board, Card, List, Report, User};
+use crate::params::{BoardParams, CardParams, ListParams, ReportParams, UserParams};
 
 pub fn fake_birthdate() -> NaiveDate {
     DateTimeBefore(Utc::now()).fake::<DateTime<Utc>>().date_naive()
@@ -22,6 +24,10 @@ pub fn fake_country_code() -> CountryCode {
 
 pub fn fake_email() -> String {
     FreeEmail().fake_with_rng(&mut rng())
+}
+
+pub fn fake_ip_addr() -> IpAddr {
+    IP().fake_with_rng(&mut rng())
 }
 
 pub fn fake_language_code() -> LanguageCode {
@@ -136,6 +142,25 @@ pub async fn insert_test_list<'a>(user: Option<&User<'_>>, board: Option<&Board<
     )
     .await
     .expect("Could not insert list")
+}
+
+pub async fn insert_test_report<'a>() -> Report<'a> {
+    let user = insert_test_user(None).await;
+    let board = insert_test_board(None).await;
+    let ip_address = fake_ip_addr();
+    let message = fake_paragraph();
+
+    commands::insert_report(
+        &user,
+        &ip_address,
+        ReportParams {
+            target: ReportTarget::Board,
+            target_id: board.id,
+            message,
+        },
+    )
+    .await
+    .expect("Could not insert report")
 }
 
 pub async fn insert_test_user<'a>(password: Option<&'_ str>) -> User<'a> {

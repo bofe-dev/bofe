@@ -42,6 +42,7 @@ mod board_commands;
 mod confirmation_commands;
 mod im_database_commands;
 mod member_commands;
+mod report_commands;
 mod session_commands;
 mod user_commands;
 
@@ -73,6 +74,7 @@ pub use board_commands::*;
 pub use confirmation_commands::*;
 pub(crate) use im_database_commands::*;
 pub(crate) use member_commands::*;
+pub use report_commands::*;
 pub use session_commands::*;
 pub use user_commands::*;
 

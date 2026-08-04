@@ -166,7 +166,36 @@ pub async fn send_new_session_email(session: &Session<'_>) -> anyhow::Result<()>
 }
 
 pub mod admin_emails {
+    use bofe_core::models::Report;
+
     use super::*;
+
+    pub async fn send_new_report_email(report: &Report<'_>) -> anyhow::Result<()> {
+        let user = report.user().await?;
+
+        let message = format!(
+            "Hello,
+
+Someone has created a new report with the following details:
+
+Reporter: @{}
+
+Target: {}
+
+Target ID: {}
+
+Message:
+{}",
+            user.username, report.target, report.target_id, report.message
+        );
+
+        send_email(
+            &MAILER_CONFIG.support_email_address,
+            "(Admin) New user report created",
+            &message,
+        )
+        .await
+    }
 
     pub async fn send_new_user_email(user: &User<'_>) -> anyhow::Result<()> {
         let message = format!(

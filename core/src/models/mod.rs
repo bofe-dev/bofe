@@ -2,13 +2,14 @@ use std::borrow::Cow;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 #[cfg(feature = "graphql")]
 use url::Url;
 
 use crate::commands;
-use crate::enums::{ConfirmationAction, CountryCode};
+use crate::enums::{ConfirmationAction, CountryCode, ReportTarget};
 
 #[cfg(feature = "graphql")]
 use crate::enums::BlobFileType;
@@ -215,6 +216,25 @@ impl Member {
     /// Only the owner of the board or the same use can remove the member
     pub async fn is_removable(&self, user: &User<'_>) -> sqlx::Result<bool> {
         Ok(self.user_id == user.id || self.is_editable(user).await?)
+    }
+}
+
+pub struct Report<'a> {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub ip_address: Cow<'a, str>,
+    pub target: ReportTarget,
+    pub target_id: Uuid,
+    pub data: Value,
+    pub message: Cow<'a, str>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+impl Report<'_> {
+    pub async fn user<'a>(&self) -> sqlx::Result<User<'a>> {
+        commands::get_user_by_id(self.user_id).await
     }
 }
 
