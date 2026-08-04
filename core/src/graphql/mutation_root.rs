@@ -151,6 +151,18 @@ impl MutationRoot {
             .map_err(|errors| to_mutation_error("Failed to create member", Some(errors)))
     }
 
+    #[graphql(guard = "UserGuard")]
+    async fn create_report(&self, ctx: &Context<'_>, params: ReportParams) -> Result<bool> {
+        let user = ctx.user();
+        let ip_address = ctx.client_ip();
+        let l10n = ctx.l10n();
+
+        commands::insert_report(user, ip_address, params)
+            .await
+            .map_err(|errors| to_mutation_error(&l10n.text(KEY_TEXT_FAILED_TO_CREATE_REPORT), Some(errors)))
+            .map(|_| true)
+    }
+
     #[graphql(guard = "GuestGuard")]
     async fn create_session(&self, ctx: &Context<'_>, params: SessionParams) -> Result<SessionObject<'_>> {
         let application = ctx.application();

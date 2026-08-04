@@ -4,6 +4,7 @@ use validator::{Validate, ValidationError};
 
 use crate::commands;
 use crate::constants::*;
+use crate::enums::ReportTarget;
 use crate::enums::{BoardVisibility, CountryCode, LanguageCode};
 use crate::scalars::ColorCode;
 
@@ -85,6 +86,10 @@ pub(crate) struct BoardParams {
         custom(function = "validate_slug")
     )]
     pub slug: String,
+    #[validate(
+        custom(function = "validate_presence"),
+        length(max = 1024, message = "Must have at most 1024 characters")
+    )]
     pub description: String,
     pub visibility: BoardVisibility,
 }
@@ -146,6 +151,18 @@ pub(crate) struct MemberParams {
     pub board_id: Uuid,
     pub user_id: Uuid,
     pub is_admin: bool,
+}
+
+#[cfg_attr(feature = "graphql", derive(async_graphql::InputObject))]
+#[derive(Validate)]
+pub(crate) struct ReportParams {
+    pub target: ReportTarget,
+    pub target_id: Uuid,
+    #[validate(
+        custom(function = "validate_presence"),
+        length(max = 1024, message = "Must have at most 1024 characters")
+    )]
+    pub message: String,
 }
 
 #[cfg_attr(feature = "graphql", derive(async_graphql::InputObject))]

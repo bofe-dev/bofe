@@ -442,3 +442,22 @@ impl LanguageCode {
         L10n::from(self)
     }
 }
+
+#[cfg_attr(feature = "graphql", derive(async_graphql::Enum))]
+#[derive(sqlx::Type, Clone, Copy, Eq, PartialEq)]
+#[sqlx(type_name = "report_target", rename_all = "lowercase")]
+pub enum ReportTarget {
+    Board,
+    Card,
+    User,
+}
+
+impl Display for ReportTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReportTarget::Board => write!(f, "board"),
+            ReportTarget::Card => write!(f, "card"),
+            ReportTarget::User => write!(f, "user"),
+        }
+    }
+}

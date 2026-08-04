@@ -1,6 +1,7 @@
 failed-to-archive-card = Error al archivar tarjeta
 failed-to-confirm-email = Error al confirmar correo electrónico
 failed-to-confirm-password-reset = Error al confirmar restablecimiento de contraseña
+failed-to-create-report = Error al crear reporte
 failed-to-create-session = Error al crear sesión
 failed-to-create-user = Error al crear usuario
 failed-to-delete-user = Error al eliminar usuario

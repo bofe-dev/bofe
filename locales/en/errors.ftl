@@ -1,6 +1,7 @@
 failed-to-archive-card = Failed to archive card
 failed-to-confirm-email = Failed to confirm email
 failed-to-confirm-password-reset = Failed to confirm password reset
+failed-to-create-report = Failed to create report
 failed-to-create-session = Failed to create session
 failed-to-create-user = Failed to create user
 failed-to-delete-user = Failed to delete user

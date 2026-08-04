@@ -10,10 +10,11 @@ use crate::config::MONITOR_CONFIG;
 use crate::enums::ActivityAction;
 
 #[cfg(feature = "graphql")]
-use crate::models::{Board, Card, Confirmation, List, Session, User};
+use crate::models::{Board, Card, Confirmation, List, Report, Session, User};
 
 pub struct JobsStorage {
     pub new_confirmation: RedisStorage<NewConfirmationJob>,
+    pub new_report: RedisStorage<NewReportJob>,
     pub new_session: RedisStorage<NewSessionJob>,
     pub new_user: RedisStorage<NewUserJob>,
     pub password_changed: RedisStorage<PasswordChangedJob>,
@@ -24,6 +25,7 @@ impl JobsStorage {
     pub(crate) async fn new() -> Self {
         Self {
             new_confirmation: Self::storage().await,
+            new_report: Self::storage().await,
             new_session: Self::storage().await,
             new_user: Self::storage().await,
             password_changed: Self::storage().await,
@@ -47,6 +49,15 @@ impl JobsStorage {
                 confirmation_id: confirmation.id,
                 code: code.to_owned(),
             })
+            .await
+            .expect("Could not store job");
+    }
+
+    #[cfg(feature = "graphql")]
+    pub(crate) async fn push_new_report(&self, report: &Report<'_>) {
+        self.new_report
+            .clone()
+            .push(NewReportJob { report_id: report.id })
             .await
             .expect("Could not store job");
     }
@@ -105,6 +116,11 @@ impl JobsStorage {
 pub struct NewConfirmationJob {
     pub confirmation_id: Uuid,
     pub code: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct NewReportJob {
+    pub report_id: Uuid,
 }
 
 #[derive(Deserialize, Serialize)]
